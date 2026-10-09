@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tic-Tac-Toe AI Visualizer</title>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #172033;
+            background: #f3f5fb;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 28px 16px; }
+        main { max-width: 940px; margin: 0 auto; }
+        h1, h2 { margin-top: 0; }
+        h1 { text-align: center; margin-bottom: 8px; }
+        .subtitle { text-align: center; color: #566176; margin: 0 0 24px; }
+        .panel {
+            background: #fff;
+            border: 1px solid #e0e5ef;
+            border-radius: 14px;
+            box-shadow: 0 8px 28px rgba(31, 41, 55, .06);
+            padding: 22px;
+            margin-bottom: 18px;
+        }
+        .settings, .benchmark-settings {
+            display: flex;
+            align-items: end;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+        label { display: grid; gap: 6px; font-weight: 650; font-size: .92rem; }
+        select, input, button {
+            min-height: 42px;
+            border: 1px solid #cbd3e1;
+            border-radius: 8px;
+            padding: 8px 11px;
+            font: inherit;
+        }
+        select, input { background: white; color: inherit; }
+        button { border: 0; color: white; background: #4f46e5; cursor: pointer; font-weight: 650; }
+        button:hover:not(:disabled) { background: #4338ca; }
+        button:disabled { cursor: not-allowed; opacity: .55; }
+        .secondary { color: #263247; background: #e8ecf5; }
+        .secondary:hover:not(:disabled) { background: #dbe1ed; }
+        .game-layout { display: grid; grid-template-columns: minmax(250px, 360px) 1fr; gap: 28px; align-items: start; }
+        .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+        .cell {
+            aspect-ratio: 1;
+            display: grid;
+            place-items: center;
+            position: relative;
+            background: #f1f3ff;
+            border: 1px solid #cbd2fa;
+            border-radius: 10px;
+            color: #312e81;
+            font-size: clamp(2.4rem, 8vw, 4rem);
+            line-height: 1;
+        }
+        .cell[data-value="O"] { color: #0f766e; }
+        .cell .score {
+            position: absolute;
+            right: 6px;
+            bottom: 5px;
+            font-size: .78rem;
+            line-height: 1;
+            color: #5b6475;
+        }
+        .cell.winning { background: #dcfce7; border-color: #22c55e; }
+        .status { min-height: 28px; margin: 16px 0 0; font-weight: 700; text-align: center; }
+        .actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
+        .metrics { display: grid; grid-template-columns: repeat(2, minmax(100px, 1fr)); gap: 10px; }
+        .metric { background: #f6f7fb; border-radius: 9px; padding: 12px; }
+        .metric span { display: block; color: #667085; font-size: .84rem; }
+        .metric strong { display: block; margin-top: 3px; font-size: 1.1rem; }
+        .matrix { width: 100%; border-collapse: collapse; margin-top: 14px; text-align: center; }
+        .matrix td { border: 1px solid #e0e5ef; padding: 10px; font-weight: 700; }
+        .help, .result { color: #596579; font-size: .9rem; }
+        .error { color: #b42318; min-height: 1.3em; font-weight: 600; }
+        .result { margin: 14px 0 0; white-space: pre-wrap; }
+        @media (max-width: 680px) {
+            body { padding: 16px 10px; }
+            .panel { padding: 17px; }
+            .game-layout { grid-template-columns: 1fr; }
+            .board { max-width: 360px; width: 100%; margin: 0 auto; }
+            .settings > label { flex: 1 1 145px; }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Tic-Tac-Toe AI Visualizer</h1>
+        <p class="subtitle">Play locally, challenge an agent, or watch agents compete.</p>
+
+        <section class="panel settings" aria-label="Game settings">
+            <label>Game mode
+                <select id="mode">
+                    <option value="human-ai">Human vs AI</option>
+                    <option value="local">2-player local</option>
+                    <option value="ai-ai">AI vs AI</option>
+                </select>
+            </label>
+            <label id="difficultyControl">AI difficulty
+                <select id="difficulty">
+                    <option value="easy">Easy — random</option>
+                    <option value="medium">Medium — heuristic</option>
+                    <option value="hard" selected>Unbeatable — minimax</option>
+                </select>
+            </label>
+            <label id="humanSideControl">Play as
+                <select id="humanSide">
+                    <option value="X">X (first)</option>
+                    <option value="O">O (second)</option>
+                </select>
+            </label>
+            <button type="button" class="secondary" id="resetBtn">New game</button>
+        </section>
+
+        <section class="panel game-layout" aria-label="Game board and analysis">
+            <div>
+                <div class="board" id="board" role="group" aria-label="Tic-Tac-Toe board">
+                    <button class="cell" type="button" data-index="0" aria-label="Square 1"></button>
+                    <button class="cell" type="button" data-index="1" aria-label="Square 2"></button>
+                    <button class="cell" type="button" data-index="2" aria-label="Square 3"></button>
+                    <button class="cell" type="button" data-index="3" aria-label="Square 4"></button>
+                    <button class="cell" type="button" data-index="4" aria-label="Square 5"></button>
+                    <button class="cell" type="button" data-index="5" aria-label="Square 6"></button>
+                    <button class="cell" type="button" data-index="6" aria-label="Square 7"></button>
+                    <button class="cell" type="button" data-index="7" aria-label="Square 8"></button>
+                    <button class="cell" type="button" data-index="8" aria-label="Square 9"></button>
+                </div>
+                <p class="status" id="status" role="status" aria-live="polite"></p>
+                <div class="actions">
+                    <button type="button" class="secondary" id="resetBoardBtn">Reset board</button>
+                </div>
+            </div>
+            <div>
+                <h2>Move analysis</h2>
+                <p class="help">Scores are from the AI’s perspective; higher is better. “—” means the square was not a legal candidate.</p>
+                <div class="metrics">
+                    <div class="metric"><span>Last agent</span><strong id="metricAgent">—</strong></div>
+                    <div class="metric"><span>Nodes evaluated</span><strong id="metricNodes">0</strong></div>
+                    <div class="metric"><span>Chosen square</span><strong id="metricMove">—</strong></div>
+                    <div class="metric"><span>Chosen score</span><strong id="metricScore">—</strong></div>
+                </div>
+                <table class="matrix" aria-label="Candidate move score matrix">
+                    <tbody>
+                        <tr><td id="score0">—</td><td id="score1">—</td><td id="score2">—</td></tr>
+                        <tr><td id="score3">—</td><td id="score4">—</td><td id="score5">—</td></tr>
+                        <tr><td id="score6">—</td><td id="score7">—</td><td id="score8">—</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel" aria-labelledby="benchmarkHeading">
+            <h2 id="benchmarkHeading">Bot vs bot benchmark</h2>
+            <div class="benchmark-settings">
+                <label>Agent X
+                    <select id="agent1">
+                        <option value="easy">Easy — random</option>
+                        <option value="medium">Medium — heuristic</option>
+                        <option value="hard" selected>Hard — minimax</option>
+                    </select>
+                </label>
+                <label>Agent O
+                    <select id="agent2">
+                        <option value="easy" selected>Easy — random</option>
+                        <option value="medium">Medium — heuristic</option>
+                        <option value="hard">Hard — minimax</option>
+                    </select>
+                </label>
+                <label>Games (1–500)
+                    <input id="gameCount" type="number" min="1" max="500" value="20">
+                </label>
+                <button type="button" id="benchmarkBtn">Run benchmark</button>
+            </div>
+            <p class="result" id="benchmarkResult" role="status" aria-live="polite"></p>
+        </section>
+        <p class="error" id="error" role="alert"></p>
+    </main>
+
+    <script>
+        const boardElement = document.getElementById('board');
+        const modeElement = document.getElementById('mode');
+        const difficultyElement = document.getElementById('difficulty');
+        const humanSideElement = document.getElementById('humanSide');
+        const cells = [...boardElement.querySelectorAll('.cell')];
+        let board = Array(9).fill(' ');
+        let currentPlayer = 'X';
+        let winner = null;
+        let winningLine = [];
+        let isDraw = false;
+        let busy = false;
+        let gameGeneration = 0;
+        let aiTimer = null;
+        let lastScoreMatrix = Array(9).fill(null);
+
+        async function requestJSON(url, body) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'The request could not be completed.');
+            return data;
+        }
+
+        function setError(message = '') {
+            document.getElementById('error').textContent = message;
+        }
+
+        function setGame(data) {
+            board = data.board;
+            currentPlayer = data.current_player;
+            winner = data.winner;
+            winningLine = data.winning_line || [];
+            isDraw = data.draw;
+        }
+
+        function updateSettings() {
+            const mode = modeElement.value;
+            document.getElementById('difficultyControl').hidden = mode === 'local';
+            document.getElementById('humanSideControl').hidden = mode !== 'human-ai';
+        }
+
+        function statusText() {
+            if (winner) return `${winner} wins!`;
+            if (isDraw) return 'It’s a draw.';
+            if (modeElement.value === 'ai-ai') return `Agent ${currentPlayer} is thinking…`;
+            if (modeElement.value === 'human-ai') {
+                return currentPlayer === humanSideElement.value
+                    ? `Your turn (${currentPlayer}).`
+                    : `AI turn (${currentPlayer}).`;
+            }
+            return `Player ${currentPlayer}’s turn.`;
+        }
+
+        function render() {
+            const isOver = Boolean(winner || isDraw);
+            const mode = modeElement.value;
+            const humanTurn = mode === 'local'
+                || (mode === 'human-ai' && currentPlayer === humanSideElement.value);
+            cells.forEach((cell, index) => {
+                cell.textContent = board[index] === ' ' ? '' : board[index];
+                cell.dataset.value = board[index];
+                cell.disabled = busy || isOver || !humanTurn || board[index] !== ' ';
+                cell.classList.toggle('winning', winningLine.includes(index));
+                cell.setAttribute('aria-label', `Square ${index + 1}${board[index] === ' ' ? ', empty' : `, ${board[index]}`}`);
+            });
+            document.getElementById('status').textContent = statusText();
+            for (let index = 0; index < 9; index += 1) {
+                const score = lastScoreMatrix[index];
+                document.getElementById(`score${index}`).textContent =
+                    score === null || score === undefined ? '—' : score;
+            }
+        }
+
+        function showAnalysis(data, difficulty) {
+            lastScoreMatrix = data.move_scores || Array(9).fill(null);
+            const labels = { easy: 'Random', medium: 'Heuristic', hard: 'Minimax' };
+            document.getElementById('metricAgent').textContent = labels[difficulty] || difficulty;
+            document.getElementById('metricNodes').textContent = data.nodes_evaluated;
+            document.getElementById('metricMove').textContent = String(data.move + 1);
+            document.getElementById('metricScore').textContent =
+                lastScoreMatrix[data.move] ?? '—';
+        }
+
+        async function runAiTurn() {
+            if (busy || winner || isDraw) return;
+            const generation = gameGeneration;
+            const mode = modeElement.value;
+            if (mode === 'human-ai' && currentPlayer === humanSideElement.value) return;
+            busy = true;
+            setError();
+            render();
+            try {
+                const data = await requestJSON('/api/ai_move', {
+                    board,
+                    current_player: currentPlayer,
+                    difficulty: difficultyElement.value
+                });
+                if (generation === gameGeneration) {
+                    setGame(data);
+                    showAnalysis(data, data.difficulty);
+                }
+            } catch (error) {
+                if (generation === gameGeneration) setError(error.message);
+            } finally {
+                if (generation === gameGeneration) {
+                    busy = false;
+                    render();
+                }
+            }
+            if (generation === gameGeneration && modeElement.value === 'ai-ai' && !winner && !isDraw) {
+                aiTimer = window.setTimeout(() => {
+                    aiTimer = null;
+                    runAiTurn();
+                }, 350);
+            }
+        }
+
+        async function resetGame() {
+            const generation = ++gameGeneration;
+            window.clearTimeout(aiTimer);
+            aiTimer = null;
+            busy = true;
+            setError();
+            lastScoreMatrix = Array(9).fill(null);
+            document.getElementById('metricAgent').textContent = '—';
+            document.getElementById('metricNodes').textContent = '0';
+            document.getElementById('metricMove').textContent = '—';
+            document.getElementById('metricScore').textContent = '—';
+            updateSettings();
+            render();
+            try {
+                const data = await requestJSON('/api/reset', {});
+                if (generation === gameGeneration) setGame(data);
+            } catch (error) {
+                if (generation === gameGeneration) setError(error.message);
+            } finally {
+                if (generation === gameGeneration) {
+                    busy = false;
+                    render();
+                }
+            }
+            if (generation === gameGeneration && (modeElement.value === 'ai-ai'
+                || (modeElement.value === 'human-ai' && currentPlayer !== humanSideElement.value))) {
+                runAiTurn();
+            }
+        }
+
+        boardElement.addEventListener('click', async (event) => {
+            const cell = event.target.closest('.cell');
+            if (!cell || busy || cell.disabled) return;
+            const generation = gameGeneration;
+            busy = true;
+            setError();
+            render();
+            try {
+                const data = await requestJSON('/api/move', {
+                    board,
+                    player: currentPlayer,
+                    position: Number(cell.dataset.index)
+                });
+                if (generation === gameGeneration) setGame(data);
+            } catch (error) {
+                if (generation === gameGeneration) setError(error.message);
+            } finally {
+                if (generation === gameGeneration) {
+                    busy = false;
+                    render();
+                }
+            }
+            if (generation === gameGeneration && modeElement.value === 'human-ai' && !winner && !isDraw) {
+                runAiTurn();
+            }
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', resetGame);
+        document.getElementById('resetBoardBtn').addEventListener('click', resetGame);
+        modeElement.addEventListener('change', resetGame);
+        difficultyElement.addEventListener('change', resetGame);
+        humanSideElement.addEventListener('change', resetGame);
+
+        document.getElementById('benchmarkBtn').addEventListener('click', async () => {
+            const result = document.getElementById('benchmarkResult');
+            const games = Number(document.getElementById('gameCount').value);
+            result.textContent = 'Running benchmark…';
+            setError();
+            try {
+                const data = await requestJSON('/api/benchmark', {
+                    games,
+                    agent1: document.getElementById('agent1').value,
+                    agent2: document.getElementById('agent2').value
+                });
+                const percent = (rate) => `${(rate * 100).toFixed(1)}%`;
+                result.textContent =
+                    `Agent X (${data.agent1}): ${data.agent1_wins} wins (${percent(data.agent1_win_rate)})\n`
+                    + `Agent O (${data.agent2}): ${data.agent2_wins} wins (${percent(data.agent2_win_rate)})\n`
+                    + `Draws: ${data.draws} (${percent(data.draw_rate)}) across ${data.games} games.`;
+            } catch (error) {
+                result.textContent = '';
+                setError(error.message);
+            }
+        });
+
+        resetGame();
+    </script>
+</body>
+</html>
